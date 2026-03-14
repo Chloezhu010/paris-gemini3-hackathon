@@ -3,97 +3,77 @@ import type { OnboardingStep } from "@/types/audit";
 const verdictConfig = {
   good: {
     label: "Good",
-    chip: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20",
-    border: "ring-emerald-200",
+    chip: "bg-[#d1fae5] text-[#065f46] border border-[#10b981]",
+    dot: "bg-[#10b981]",
+    line: "border-[#10b981]",
   },
   "needs-work": {
     label: "Needs work",
-    chip: "bg-yellow-500/10 text-yellow-800 ring-yellow-500/20",
-    border: "ring-yellow-200",
+    chip: "bg-[#fef3c7] text-[#92400e] border border-[#f59e0b]",
+    dot: "bg-[#f59e0b]",
+    line: "border-[#f59e0b]",
   },
   issue: {
     label: "Issue",
-    chip: "bg-red-500/10 text-red-700 ring-red-500/20",
-    border: "ring-red-200",
+    chip: "bg-[#fee2e2] text-[#991b1b] border border-[#dc2626]",
+    dot: "bg-[#dc2626]",
+    line: "border-[#dc2626]",
   },
 };
 
-function ScreenshotPlaceholder() {
-  return (
-    <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-xl bg-zinc-100 ring-1 ring-inset ring-zinc-200">
-      <svg className="h-8 w-8 text-zinc-300" viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
-        <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <p className="text-xs text-zinc-400">Screenshot pending</p>
-    </div>
-  );
-}
-
-function StepConnector() {
-  return (
-    <div className="flex flex-col items-center py-1">
-      <div className="h-3 w-px bg-zinc-200" />
-      <svg className="h-4 w-4 text-zinc-300" viewBox="0 0 16 16" fill="none">
-        <path d="M8 2v10M3 9l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <div className="h-3 w-px bg-zinc-200" />
-    </div>
-  );
-}
-
 export default function FlowTimeline({ steps }: { steps: OnboardingStep[] }) {
   return (
-    <div className="space-y-1">
-      <h3 className="text-sm font-semibold text-zinc-950">Captured flow</h3>
-      <p className="mb-3 text-xs text-zinc-500">
-        Each screen captured by Playwright as the agent navigated the signup flow.
-      </p>
+    <ol className="relative space-y-6">
+      {steps.map((step, i) => {
+        const config = verdictConfig[step.verdict];
+        const isLast = i === steps.length - 1;
+        return (
+          <li key={step.name} className="flex gap-4">
+            {/* Timeline spine */}
+            <div className="flex flex-col items-center">
+              <span className={`mt-1.5 h-4 w-4 flex-shrink-0 ring-4 ring-white ${config.dot}`} />
+              {!isLast && (
+                <span
+                  className={`mt-2 flex-1 border-l-2 border-dashed w-px ${config.line}`}
+                  style={{ minHeight: "80px" }}
+                />
+              )}
+            </div>
 
-      <ol className="flex flex-col">
-        {steps.map((step, i) => {
-          const config = verdictConfig[step.verdict];
-          const isLast = i === steps.length - 1;
-
-          return (
-            <li key={step.name}>
-              <div className={["rounded-2xl bg-white p-4 ring-1 ring-inset", config.border].join(" ")}>
-                {/* Header */}
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white">
-                      {i + 1}
-                    </span>
-                    <p className="text-sm font-semibold text-zinc-950">{step.name}</p>
-                  </div>
-                  <span className={["inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset", config.chip].join(" ")}>
-                    {config.label}
-                  </span>
-                </div>
-
-                {/* Full-width screenshot */}
-                {step.screenshotUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={step.screenshotUrl}
-                    alt={`Screenshot: ${step.name}`}
-                    className="w-full rounded-xl object-cover object-top ring-1 ring-inset ring-zinc-100"
-                    style={{ maxHeight: "360px" }}
-                  />
-                ) : (
-                  <ScreenshotPlaceholder />
-                )}
-
-                {/* Notes */}
-                <p className="mt-3 text-sm leading-5 text-zinc-600">{step.notes}</p>
+            {/* Step content */}
+            <div className="pb-4 min-w-0 flex-1 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-[#1f2937]">{step.name}</p>
+                <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold ${config.chip}`}>
+                  {config.label}
+                </span>
               </div>
 
-              {!isLast && <StepConnector />}
-            </li>
-          );
-        })}
-      </ol>
-    </div>
+              {step.screenshotUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={step.screenshotUrl}
+                  alt={step.name}
+                  className="w-full max-w-sm border-2 border-[#e5e7eb] object-cover object-top"
+                  style={{ height: 120 }}
+                />
+              ) : (
+                <div className="flex aspect-video w-full max-w-sm items-center justify-center border-2 border-[#e5e7eb] bg-[#f5f5f5]">
+                  <svg className="h-6 w-6 text-[#d1d5db]" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                    <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              )}
+
+              {step.notes && (
+                <p className="text-sm text-[#6b7280]">{step.notes}</p>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
