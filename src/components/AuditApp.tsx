@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { DesignReport, DesignScreenshots } from "@/types/audit";
+import type { DesignReport, OnboardingStep } from "@/types/audit";
 import ProgressSteps from "@/components/ProgressSteps";
+import FlowTimeline from "@/components/FlowTimeline";
 
 function formatIso(ts: string) {
   const date = new Date(ts);
@@ -18,7 +19,7 @@ export default function AuditApp() {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DesignReport | null>(null);
-  const [screenshots, setScreenshots] = useState<DesignScreenshots | null>(null);
+  const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStep[] | null>(null);
 
   const canSubmit = url.trim().length > 0;
 
@@ -26,7 +27,7 @@ export default function AuditApp() {
     setStatus("loading");
     setError(null);
     setReport(null);
-    setScreenshots(null);
+    setOnboardingSteps(null);
 
     try {
       const response = await fetch("/api/audit", {
@@ -45,10 +46,10 @@ export default function AuditApp() {
 
       const data = await response.json() as {
         report: DesignReport;
-        screenshots?: DesignScreenshots;
+        onboardingSteps?: OnboardingStep[];
       };
       setReport(data.report);
-      setScreenshots(data.screenshots ?? null);
+      setOnboardingSteps(data.onboardingSteps ?? null);
       setStatus("success");
     } catch (e) {
       setStatus("error");
@@ -144,23 +145,9 @@ export default function AuditApp() {
                 </div>
               </div>
 
-              {/* Screenshots */}
-              {screenshots ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-zinc-950">Captured screenshots</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs text-zinc-500">Desktop</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={screenshots.desktop} alt="Desktop screenshot" className="w-full rounded-xl ring-1 ring-inset ring-zinc-200" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-zinc-500">Mobile</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={screenshots.mobile} alt="Mobile screenshot" className="w-full rounded-xl ring-1 ring-inset ring-zinc-200" />
-                    </div>
-                  </div>
-                </div>
+              {/* Flow timeline */}
+              {onboardingSteps && onboardingSteps.length > 0 ? (
+                <FlowTimeline steps={onboardingSteps} />
               ) : null}
 
               {/* User flow */}

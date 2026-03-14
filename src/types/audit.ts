@@ -98,4 +98,5 @@ export type AuditResponse = {
 export type DesignResponse = {
   report: DesignReport;
   screenshots: DesignScreenshots;
+  onboardingSteps?: OnboardingStep[];
 };
