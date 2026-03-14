@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AgentEvent, DesignReport, DesignScreenshots } from "@/types/audit";
+import type { AgentEvent, DesignReport, DesignScreenshots, FlowStepCapture } from "@/types/audit";
 
 function formatIso(ts: string) {
   const date = new Date(ts);
@@ -39,6 +39,7 @@ export default function AuditApp() {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DesignReport | null>(null);
   const [screenshots, setScreenshots] = useState<DesignScreenshots | null>(null);
+  const [flowStepCaptures, setFlowStepCaptures] = useState<FlowStepCapture[]>([]);
   const [agentLog, setAgentLog] = useState<AgentEvent[]>([]);
 
   const canSubmit = url.trim().length > 0;
@@ -48,6 +49,7 @@ export default function AuditApp() {
     setError(null);
     setReport(null);
     setScreenshots(null);
+    setFlowStepCaptures([]);
     setAgentLog([]);
 
     let response: Response;
@@ -93,6 +95,7 @@ export default function AuditApp() {
             completed = true;
             setReport(event.report);
             setScreenshots(event.screenshots);
+            setFlowStepCaptures(event.flowStepCaptures);
             setStatus("success");
           } else if (event.type === "error") {
             completed = true;
@@ -222,8 +225,54 @@ export default function AuditApp() {
                 </div>
               </div>
 
-              {/* Screenshots */}
-              {screenshots ? (
+              {/* Agent journey filmstrip */}
+              {flowStepCaptures.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-zinc-950">Agent journey</h3>
+                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 ring-1 ring-inset ring-zinc-200">
+                      {flowStepCaptures.length} step{flowStepCaptures.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                    {flowStepCaptures.map((step, i) => (
+                      <div key={i} className="flex-shrink-0 w-52 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-semibold text-white">
+                            {i + 1}
+                          </span>
+                          <p className="text-xs text-zinc-500 truncate">{step.name}</p>
+                        </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={step.dataUri}
+                          alt={step.name}
+                          className="w-full rounded-lg ring-1 ring-inset ring-zinc-200 object-cover object-top"
+                          style={{ height: 120 }}
+                        />
+                      </div>
+                    ))}
+                    {/* Mobile as last card */}
+                    {screenshots ? (
+                      <div className="flex-shrink-0 w-32 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-zinc-200 text-[10px] font-semibold text-zinc-600">
+                            M
+                          </span>
+                          <p className="text-xs text-zinc-500 truncate">Mobile</p>
+                        </div>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={screenshots.mobile}
+                          alt="Mobile landing"
+                          className="w-full rounded-lg ring-1 ring-inset ring-zinc-200 object-cover object-top"
+                          style={{ height: 120 }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : screenshots ? (
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold text-zinc-950">Captured screenshots</h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -332,6 +381,28 @@ export default function AuditApp() {
                     ))}
                   </div>
                 </div>
+              ) : null}
+
+              {/* Agent trace (collapsible) */}
+              {agentLog.length > 0 ? (
+                <details className="rounded-2xl ring-1 ring-inset ring-zinc-200">
+                  <summary className="cursor-pointer select-none rounded-2xl px-4 py-3 text-xs font-medium text-zinc-500 hover:bg-zinc-50 transition list-none flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-zinc-300" />
+                    Agent trace · {agentLog.length} events
+                  </summary>
+                  <ul className="border-t border-zinc-100 px-4 py-3 space-y-1.5">
+                    {agentLog.map((e, i) => {
+                      const label = eventLabel(e);
+                      if (!label) return null;
+                      return (
+                        <li key={i} className="flex items-center gap-2 text-xs text-zinc-500">
+                          <span className="h-1 w-1 flex-shrink-0 rounded-full bg-zinc-200" />
+                          {label}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
               ) : null}
             </section>
           ) : null}

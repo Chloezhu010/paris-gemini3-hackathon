@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentEvent } from "@/types/audit";
+import type { AgentEvent, FlowStepCapture } from "@/types/audit";
 import { captureWithAgent } from "@/server/auditAgent";
 import { analyzeScreenshots } from "@/server/geminiClient";
 
@@ -38,7 +38,16 @@ export async function POST(req: Request) {
         const { flowSteps, mobile } = await captureWithAgent(url, emit);
 
         emit({ type: "analysis_start" });
-        const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile, url);
+        const report = await analyzeScreenshots(
+          flowSteps.map((s) => ({ name: s.name, screenshot: s.screenshot })),
+          mobile,
+          url,
+        );
+
+        const flowStepCaptures: FlowStepCapture[] = flowSteps.map((s) => ({
+          name: s.name,
+          dataUri: `data:image/png;base64,${s.screenshot.toString("base64")}`,
+        }));
 
         emit({
           type: "done",
@@ -47,6 +56,7 @@ export async function POST(req: Request) {
             desktop: `data:image/png;base64,${flowSteps[0].screenshot.toString("base64")}`,
             mobile: `data:image/png;base64,${mobile.toString("base64")}`,
           },
+          flowStepCaptures,
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unexpected error.";

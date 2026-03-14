@@ -1,9 +1,14 @@
 import { chromium, type Page } from "playwright";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
 import type { AgentEvent } from "@/types/audit";
 import type { CapturedFlowStep } from "./captureScreenshot";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
+const DEFAULT_TIMEOUT_MS = 30_000;
+const MODEL_TIMEOUT_MS = (() => {
+  const value = Number(process.env.GEMINI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
+})();
 const DESKTOP = { width: 1280, height: 800 };
 const MOBILE = { width: 390, height: 844 };
 const GOTO_TIMEOUT = 25_000;
@@ -165,11 +170,35 @@ async function runDesktopAgent(
   while (agentSteps < MAX_AGENT_STEPS) {
     onEvent({ type: "agent_thinking" });
 
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: messages,
-      config: { tools: TOOLS },
+    const response = await (async (): Promise<GenerateContentResponse> => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+      try {
+        return await ai.models.generateContent({
+          model: MODEL,
+          contents: messages,
+          config: {
+            tools: TOOLS,
+            abortSignal: controller.signal,
+            httpOptions: { timeout: MODEL_TIMEOUT_MS },
+          },
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    })().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      const isTimeout = /timeout|abort/i.test(message);
+      onEvent({
+        type: "agent_done",
+        reason: isTimeout
+          ? `Gemini request timed out after ${Math.round(MODEL_TIMEOUT_MS / 1000)}s`
+          : `Gemini error: ${message}`,
+      });
+      return null;
     });
+
+    if (!response) break;
 
     const candidate = response.candidates?.[0];
     if (!candidate?.content) break;

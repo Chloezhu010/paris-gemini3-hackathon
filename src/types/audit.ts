@@ -38,6 +38,13 @@ export type DesignScreenshots = {
   mobile: string;  // base64 data URI
 };
 
+// ── Flow Step Capture (each browser step taken by the agent) ──────────────────
+
+export type FlowStepCapture = {
+  name: string;    // e.g. "Landing page", "Clicked 'Get Started'"
+  dataUri: string; // base64 data URI
+};
+
 // ── Design Language ───────────────────────────────────────────────────────────
 
 export type DesignColor = {
@@ -96,7 +103,7 @@ export type AgentEvent =
   | { type: "agent_action"; tool: string; args: Record<string, unknown> }
   | { type: "agent_done"; reason: string }
   | { type: "analysis_start" }
-  | { type: "done"; report: DesignReport; screenshots: DesignScreenshots }
+  | { type: "done"; report: DesignReport; screenshots: DesignScreenshots; flowStepCaptures: FlowStepCapture[] }
   | { type: "error"; message: string };
 
 // ── API Responses ─────────────────────────────────────────────────────────────
