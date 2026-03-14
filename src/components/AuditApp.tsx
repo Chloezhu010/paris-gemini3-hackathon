@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { DesignReport, DesignScreenshots } from "@/types/audit";
+import type { DesignReport, DesignScreenshots, OnboardingStep } from "@/types/audit";
 import ProgressSteps from "@/components/ProgressSteps";
+import FlowTimeline from "@/components/FlowTimeline";
+import { Button } from "@/components/ui/Button";
 
 function formatIso(ts: string) {
   const date = new Date(ts);
@@ -19,6 +21,7 @@ export default function AuditApp() {
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DesignReport | null>(null);
   const [screenshots, setScreenshots] = useState<DesignScreenshots | null>(null);
+  const [onboardingSteps, setOnboardingSteps] = useState<OnboardingStep[] | null>(null);
 
   const canSubmit = url.trim().length > 0;
 
@@ -27,6 +30,7 @@ export default function AuditApp() {
     setError(null);
     setReport(null);
     setScreenshots(null);
+    setOnboardingSteps(null);
 
     try {
       const response = await fetch("/api/audit", {
@@ -46,9 +50,11 @@ export default function AuditApp() {
       const data = await response.json() as {
         report: DesignReport;
         screenshots?: DesignScreenshots;
+        onboardingSteps?: OnboardingStep[];
       };
       setReport(data.report);
       setScreenshots(data.screenshots ?? null);
+      setOnboardingSteps(data.onboardingSteps ?? null);
       setStatus("success");
     } catch (e) {
       setStatus("error");
@@ -57,127 +63,125 @@ export default function AuditApp() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(60rem_60rem_at_20%_10%,rgba(0,0,0,0.06),transparent_60%),radial-gradient(70rem_70rem_at_80%_0%,rgba(0,0,0,0.05),transparent_55%),linear-gradient(to_bottom,#fafafa,#ffffff)]">
-      <div className="mx-auto max-w-3xl px-6 py-12">
-        <header className="space-y-2">
-          <p className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200">
-            Onboarding Flow Analyzer
-            <span className="h-1 w-1 rounded-full bg-zinc-400" />
-            Gemini-powered
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
-            Analyze any onboarding flow
-          </h1>
-          <p className="max-w-xl text-sm leading-6 text-zinc-600">
-            Paste a URL. The agent captures the page, extracts its design language,
-            and maps the user flow automatically.
-          </p>
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-4xl px-6 py-16">
+        {/* Header */}
+        <header className="mb-12 space-y-6">
+          <div className="space-y-3">
+            <h1 className="text-4xl font-bold text-[#1f2937]">Vibe Check</h1>
+            <p className="text-lg text-[#6b7280]">
+              Analyze any onboarding flow instantly
+            </p>
+            <p className="text-sm text-[#9ca3af] max-w-2xl">
+              Paste a URL. Our AI captures the page, extracts its design language, and maps the user flow automatically.
+            </p>
+          </div>
         </header>
 
-        <main className="mt-8 flex flex-col gap-6">
+        <main className="space-y-8">
           {/* Input panel */}
-          <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-inset ring-zinc-200 backdrop-blur">
-            <div className="flex gap-3">
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && canSubmit && submit()}
-                placeholder="https://example.com"
-                className="h-11 min-w-0 flex-1 rounded-xl bg-white px-4 text-sm text-zinc-900 ring-1 ring-inset ring-zinc-200 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950"
-                inputMode="url"
-                autoComplete="url"
-              />
-              <button
-                type="button"
-                onClick={submit}
-                disabled={!canSubmit || status === "loading"}
-                className={[
-                  "h-11 flex-shrink-0 rounded-xl px-5 text-sm font-medium transition",
-                  "focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2",
-                  !canSubmit || status === "loading"
-                    ? "bg-zinc-200 text-zinc-500"
-                    : "bg-zinc-950 text-white hover:bg-zinc-800",
-                ].join(" ")}
-              >
-                {status === "loading" ? "Analyzing…" : "Analyze"}
-              </button>
-              {status === "success" && (
-                <button
-                  type="button"
+          <section className="border-2 border-[#e5e7eb] bg-white p-8 animate-slide-in">
+            <div className="space-y-4">
+              <label className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Target URL</label>
+              <div className="flex gap-3">
+                <input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && canSubmit && submit()}
+                  placeholder="https://example.com"
+                  className="flex-1 px-4 py-3 border-2 border-[#e5e7eb] bg-white text-[#1f2937] placeholder:text-[#9ca3af] focus:outline-none focus:border-[#6d28d9] transition-colors"
+                  inputMode="url"
+                  autoComplete="url"
+                />
+                <Button
+                  variant="primary"
+                  size="md"
                   onClick={submit}
-                  className="h-11 flex-shrink-0 rounded-xl px-4 text-sm font-medium text-zinc-600 ring-1 ring-inset ring-zinc-200 hover:bg-zinc-50 transition"
+                  disabled={!canSubmit || status === "loading"}
+                  className="flex-shrink-0"
                 >
-                  Regenerate
-                </button>
-              )}
+                  {status === "loading" ? "..." : "Scan"}
+                </Button>
+                {status === "success" && (
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={submit}
+                    className="flex-shrink-0"
+                  >
+                    Re-scan
+                  </Button>
+                )}
+              </div>
             </div>
-            <p className="mt-2 text-xs text-zinc-500">
-              The agent follows the signup flow automatically — no credentials needed.
-            </p>
 
             {status === "error" && error ? (
-              <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800 ring-1 ring-inset ring-red-200">
-                {error}
+              <div className="mt-4 border-l-4 border-[#dc2626] bg-[#fef2f2] px-4 py-3 text-sm text-[#991b1b] font-mono animate-slide-in">
+                ⚠ {error}
               </div>
             ) : null}
           </section>
 
           {/* Report panel */}
           {status === "loading" ? (
-            <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-inset ring-zinc-200 backdrop-blur">
+            <section className="border-2 border-[#e5e7eb] bg-white p-8 animate-slide-in">
               <ProgressSteps />
             </section>
           ) : report ? (
-            <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-inset ring-zinc-200 backdrop-blur space-y-8">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-semibold tracking-tight text-zinc-950">{report.name}</h2>
-                  <p className="mt-1 text-xs text-zinc-400">{formatIso(report.generatedAt)} · {report.url}</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5 justify-end">
-                  {report.vibeKeywords.map((kw) => (
-                    <span key={kw} className="inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 ring-1 ring-inset ring-zinc-200">
-                      {kw}
-                    </span>
-                  ))}
+            <section className="space-y-8">
+              {/* Header with vibe keywords */}
+              <div className="border-2 border-[#e5e7eb] bg-white p-8 animate-slide-in">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-[#1f2937]">{report.name}</h2>
+                    <p className="mt-2 text-sm text-[#6b7280] font-mono">{formatIso(report.generatedAt)} · {report.url}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {report.vibeKeywords.map((kw) => (
+                      <span key={kw} className="bg-[#ede9fe] border border-[#6d28d9] px-3 py-1.5 text-xs text-[#6d28d9] uppercase font-semibold">
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {/* Screenshots */}
               {screenshots ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-zinc-950">Captured screenshots</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs text-zinc-500">Desktop</p>
+                <div className="space-y-4 animate-slide-in">
+                  <h3 className="text-lg font-bold text-[#1f2937]">Captured Screenshots</h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Desktop</p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={screenshots.desktop} alt="Desktop screenshot" className="w-full rounded-xl ring-1 ring-inset ring-zinc-200" />
+                      <img src={screenshots.desktop} alt="Desktop screenshot" className="w-full border-2 border-[#e5e7eb] hover:border-[#6d28d9] transition-colors" />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-zinc-500">Mobile</p>
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Mobile</p>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={screenshots.mobile} alt="Mobile screenshot" className="w-full rounded-xl ring-1 ring-inset ring-zinc-200" />
+                      <img src={screenshots.mobile} alt="Mobile screenshot" className="w-full border-2 border-[#e5e7eb] hover:border-[#6d28d9] transition-colors" />
                     </div>
                   </div>
                 </div>
               ) : null}
 
               {/* User flow */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-zinc-950">User flow</h3>
-                <p className="text-sm leading-6 text-zinc-600">{report.userFlow}</p>
-                <ol className="space-y-2">
+              <div className="border-2 border-[#e5e7eb] bg-white p-8 space-y-6 animate-slide-in">
+                <div>
+                  <h3 className="text-lg font-bold text-[#1f2937] mb-4">User Flow</h3>
+                  <p className="text-base text-[#4b5563] leading-7">{report.userFlow}</p>
+                </div>
+                <ol className="space-y-3">
                   {report.userFlowSteps.map((s) => (
-                    <li key={s.step} className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-600 ring-1 ring-inset ring-zinc-200">
+                    <li key={s.step} className="flex items-start gap-4">
+                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-white text-sm font-bold bg-[#6d28d9] border-2 border-[#6d28d9]">
                         {s.step}
                       </span>
-                      <span className="text-sm text-zinc-700">
+                      <span className="text-base text-[#1f2937] pt-1">
                         {s.action}
                         {s.decisionPoint && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                            Decision point
+                          <span className="ml-3 inline-flex items-center border-2 border-[#f59e0b] px-2.5 py-1 text-xs font-semibold text-[#f59e0b] bg-[#fef3c7]">
+                            Decision Point
                           </span>
                         )}
                       </span>
@@ -187,69 +191,79 @@ export default function AuditApp() {
               </div>
 
               {/* Design language */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-zinc-950">Design language</h3>
+              <div className="space-y-6 animate-slide-in">
+                <h3 className="text-lg font-bold text-[#1f2937]">Design Language</h3>
 
                 {/* Colors */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Colors</p>
-                  <div className="flex flex-wrap gap-2">
+                <div className="border-2 border-[#e5e7eb] bg-white p-8 space-y-4">
+                  <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Colors</p>
+                  <div className="flex flex-wrap gap-3">
                     {report.designLanguage.colors.map((c) => (
-                      <div key={c.hex} className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2 ring-1 ring-inset ring-zinc-200">
+                      <div key={c.hex} className="flex items-center gap-3 border-2 border-[#e5e7eb] bg-white px-4 py-3 hover:border-[#6d28d9] transition-colors">
                         <span
-                          className="h-4 w-4 flex-shrink-0 rounded-full ring-1 ring-inset ring-black/10"
+                          className="h-4 w-4 flex-shrink-0 border-2 border-[#e5e7eb]"
                           style={{ backgroundColor: c.hex }}
                         />
-                        <span className="text-xs font-mono text-zinc-700">{c.hex}</span>
-                        <span className="text-xs text-zinc-500">{c.usage}</span>
+                        <div>
+                          <p className="text-xs font-mono text-[#1f2937] font-semibold">{c.hex}</p>
+                          <p className="text-xs text-[#6b7280]">{c.usage}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {/* Typography */}
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Typography</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-inset ring-zinc-200">
-                      <p className="text-xs text-zinc-500">Headline</p>
-                      <p className="mt-1 text-sm font-medium text-zinc-900">{report.designLanguage.typography.headlineFont}</p>
-                      <p className="text-xs text-zinc-500">{report.designLanguage.typography.headlineSize}px</p>
+                <div className="border-2 border-[#e5e7eb] bg-white p-8 space-y-4">
+                  <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Typography</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="border-2 border-[#e5e7eb] bg-white p-4 hover:border-[#6d28d9] transition-colors">
+                      <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Headline</p>
+                      <p className="mt-3 text-base font-semibold text-[#1f2937]">{report.designLanguage.typography.headlineFont}</p>
+                      <p className="text-xs text-[#6b7280]">{report.designLanguage.typography.headlineSize}px</p>
                     </div>
-                    <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-inset ring-zinc-200">
-                      <p className="text-xs text-zinc-500">Body</p>
-                      <p className="mt-1 text-sm font-medium text-zinc-900">{report.designLanguage.typography.bodyFont}</p>
-                      <p className="text-xs text-zinc-500">{report.designLanguage.typography.bodySize}px</p>
+                    <div className="border-2 border-[#e5e7eb] bg-white p-4 hover:border-[#6d28d9] transition-colors">
+                      <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Body</p>
+                      <p className="mt-3 text-base font-semibold text-[#1f2937]">{report.designLanguage.typography.bodyFont}</p>
+                      <p className="text-xs text-[#6b7280]">{report.designLanguage.typography.bodySize}px</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Components + animation vibe */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Components</p>
-                    <ul className="space-y-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="border-2 border-[#e5e7eb] bg-white p-8 hover:border-[#6d28d9] transition-colors space-y-3">
+                    <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Components</p>
+                    <ul className="space-y-2">
                       {report.designLanguage.components.map((c) => (
-                        <li key={c} className="text-sm text-zinc-700">· {c}</li>
+                        <li key={c} className="text-sm text-[#1f2937]">• {c}</li>
                       ))}
                     </ul>
                   </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Animation vibe</p>
-                    <p className="text-sm text-zinc-700">{report.designLanguage.animationVibe}</p>
+                  <div className="border-2 border-[#e5e7eb] bg-white p-8 hover:border-[#ec4899] transition-colors space-y-3">
+                    <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Animation Vibe</p>
+                    <p className="text-sm text-[#1f2937] leading-6">{report.designLanguage.animationVibe}</p>
                   </div>
                 </div>
               </div>
 
+              {/* Captured flow */}
+              {onboardingSteps && onboardingSteps.length > 0 ? (
+                <div className="border-2 border-[#e5e7eb] bg-white p-8 animate-slide-in">
+                  <h3 className="text-lg font-bold text-[#1f2937] mb-6">Captured Flow</h3>
+                  <FlowTimeline steps={onboardingSteps} />
+                </div>
+              ) : null}
+
               {/* Design decisions */}
               {report.designDecisions.length > 0 ? (
-                <div className="space-y-3">
-                  <h3 className="text-sm font-semibold text-zinc-950">Design decisions</h3>
+                <div className="space-y-4 animate-slide-in">
+                  <h3 className="text-lg font-bold text-[#1f2937]">Design Decisions</h3>
                   <div className="space-y-3">
                     {report.designDecisions.map((d) => (
-                      <div key={d.question} className="rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-inset ring-zinc-200">
-                        <p className="text-sm font-medium text-zinc-900">{d.question}</p>
-                        <p className="mt-1 text-sm text-zinc-600">{d.answer}</p>
+                      <div key={d.question} className="border-l-4 border-l-[#6d28d9] border-2 border-[#e5e7eb] bg-white px-6 py-4 hover:border-l-[#ec4899] transition-colors">
+                        <p className="text-sm font-bold text-[#1f2937]">{d.question}</p>
+                        <p className="mt-2 text-sm text-[#6b7280] leading-6">{d.answer}</p>
                       </div>
                     ))}
                   </div>

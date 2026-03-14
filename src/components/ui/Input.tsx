@@ -18,48 +18,31 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     iconPosition = 'right',
     ...props
   }, ref) => {
-    const hasIcon = !!icon;
-
     return (
-      <div className="w-full space-y-sm">
+      <div className="w-full space-y-2">
         {label && (
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label className="block text-xs uppercase tracking-widest text-[#6b7280] font-semibold">
             {label}
           </label>
         )}
 
-        <div className="relative">
+        <div className={`border-2 bg-white transition-colors ${error ? 'border-[#dc2626]' : 'border-[#e5e7eb] focus-within:border-[#6d28d9]'}`}>
           <input
             ref={ref}
             className={`
               input-base
-              ${hasIcon && iconPosition === 'left' ? 'pl-10' : ''}
-              ${hasIcon && iconPosition === 'right' ? 'pr-10' : ''}
-              ${error ? 'border-error focus:ring-error focus:border-transparent' : ''}
               ${className}
             `}
             {...props}
           />
-
-          {icon && (
-            <div
-              className={`
-                absolute top-1/2 -translate-y-1/2
-                ${iconPosition === 'left' ? 'left-3' : 'right-3'}
-                text-slate-400 pointer-events-none
-              `}
-            >
-              {icon}
-            </div>
-          )}
         </div>
 
         {error && (
-          <p className="text-xs font-medium text-error">{error}</p>
+          <p className="text-xs font-medium text-[#dc2626]">{error}</p>
         )}
 
         {helperText && !error && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{helperText}</p>
+          <p className="text-xs text-[#6b7280]">{helperText}</p>
         )}
       </div>
     );

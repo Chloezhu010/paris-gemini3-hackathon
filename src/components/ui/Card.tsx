@@ -7,15 +7,15 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className = '', hoverable = true, variant = 'default', children, ...props }, ref) => {
-    const baseClasses = 'rounded-xl bg-white dark:bg-slate-800 transition-all duration-normal';
+    const baseClasses = 'bg-white transition-all duration-normal';
 
     const variantClasses = {
-      default: 'border border-slate-200 dark:border-slate-700 shadow-sm p-6',
-      elevated: 'shadow-md p-6',
-      outlined: 'border-2 border-slate-200 dark:border-slate-700 p-6',
+      default: 'border-2 border-[#e5e7eb] p-6',
+      elevated: 'border-2 border-[#6d28d9] p-6 shadow-lg shadow-[rgba(109,40,217,0.1)]',
+      outlined: 'border-2 border-[#e5e7eb] p-6',
     };
 
-    const hoverClasses = hoverable ? 'hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600' : '';
+    const hoverClasses = hoverable ? 'hover:border-[#6d28d9] hover:shadow-md hover:shadow-[rgba(109,40,217,0.1)]' : '';
 
     return (
       <div

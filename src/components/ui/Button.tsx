@@ -25,9 +25,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const sizeClasses = {
-      sm: 'px-3 py-1.5 text-sm rounded-md',
-      md: 'px-4 py-2 text-base rounded-lg',
-      lg: 'px-6 py-3 text-lg rounded-lg',
+      sm: 'px-3 py-1 text-xs',
+      md: 'px-4 py-2 text-sm',
+      lg: 'px-6 py-2.5 text-sm',
     };
 
     return (
@@ -39,7 +39,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading ? (
           <span className="flex items-center gap-2">
-            <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            <span className="animate-pulse">...</span>
             {children}
           </span>
         ) : (

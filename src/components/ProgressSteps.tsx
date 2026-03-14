@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 
 const STEPS = [
-  "Navigating to landing page…",
-  "Capturing landing page…",
-  "Finding signup CTA…",
-  "Clicking through to auth…",
-  "Capturing sign-up screen…",
-  "Analyzing flow with Gemini…",
+  "Navigate to landing page",
+  "Capture landing page",
+  "Find signup CTA",
+  "Click through to auth",
+  "Capture sign-up screen",
+  "Analyze flow with Gemini",
 ];
 
 const STEP_DURATION_MS = 1800;
@@ -24,41 +24,38 @@ export default function ProgressSteps() {
   }, []);
 
   return (
-    <div className="rounded-2xl border border-dashed border-zinc-200 bg-white p-6">
-      <p className="mb-4 text-sm font-medium text-zinc-900">Analyzing onboarding flow</p>
-      <ol className="space-y-3">
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-bold text-[#1f2937] mb-2">Analyzing onboarding flow</h3>
+        <div className="w-full bg-[#e5e7eb] rounded-full h-2 overflow-hidden">
+          <div
+            className="bg-gradient-to-r from-[#6d28d9] to-[#ec4899] h-full transition-all duration-500 ease-out"
+            style={{ width: `${((activeIndex + 1) / STEPS.length) * 100}%` }}
+          />
+        </div>
+      </div>
+      <ol className="space-y-3 font-mono">
         {STEPS.map((label, i) => {
           const isDone = i < activeIndex;
           const isActive = i === activeIndex;
           return (
-            <li key={label} className="flex items-center gap-3">
+            <li key={label} className="flex items-center gap-4">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full font-semibold text-xs transition-all duration-300"
+                style={{
+                  backgroundColor: isDone ? "#d1d5db" : isActive ? "#6d28d9" : "#e5e7eb",
+                  color: isDone ? "#6b7280" : isActive ? "#ffffff" : "#1f2937",
+                }}>
+                {isDone && "✓"}
+                {isActive && <span className="animate-pulse">●</span>}
+                {!isDone && !isActive && i + 1}
+              </div>
               <span
-                className={[
-                  "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-medium transition-all duration-500",
-                  isDone
-                    ? "bg-zinc-900 text-white"
-                    : isActive
-                      ? "bg-zinc-900 text-white ring-2 ring-zinc-900 ring-offset-2"
-                      : "bg-zinc-100 text-zinc-400",
-                ].join(" ")}
-              >
-                {isDone ? (
-                  <svg className="h-3 w-3" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                ) : (
-                  isActive ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
-                  ) : (
-                    <span className="h-1.5 w-1.5 rounded-full bg-zinc-300" />
-                  )
-                )}
-              </span>
-              <span
-                className={[
-                  "text-sm transition-colors duration-300",
-                  isDone ? "text-zinc-400 line-through" : isActive ? "font-medium text-zinc-900" : "text-zinc-400",
-                ].join(" ")}
+                className="text-sm transition-colors duration-300"
+                style={{
+                  color: isDone ? "#d1d5db" : isActive ? "#6d28d9" : "#6b7280",
+                  textDecoration: isDone ? "line-through" : "none",
+                  fontWeight: isActive ? "600" : "400",
+                }}
               >
                 {label}
               </span>
@@ -66,6 +63,7 @@ export default function ProgressSteps() {
           );
         })}
       </ol>
+      <p className="text-xs text-[#9ca3af] font-mono">Estimated time: ~{STEP_DURATION_MS * STEPS.length / 1000}s</p>
     </div>
   );
 }
