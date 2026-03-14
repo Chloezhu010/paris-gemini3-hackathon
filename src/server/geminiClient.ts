@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
 import type {
   DesignReport,
   DesignColor,
@@ -7,6 +7,11 @@ import type {
 } from "@/types/audit";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
+const DEFAULT_TIMEOUT_MS = 30_000;
+const MODEL_TIMEOUT_MS = (() => {
+  const value = Number(process.env.GEMINI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
+})();
 
 function getClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -95,16 +100,16 @@ const RESPONSE_SCHEMA = {
 };
 
 const PROMPT = `You are a senior UX designer and design systems expert.
-Analyze the desktop and mobile screenshots of this product page.
-Extract a complete design reference card to help other designers understand and replicate this design language.
+You are given a sequence of desktop screenshots captured step-by-step as a browser agent navigated the signup/onboarding flow, plus a mobile landing page screenshot.
+Extract a complete design reference card to help other designers understand and replicate this design language and onboarding flow.
 
 Guidelines:
 - Extract 3–6 colors actually visible in the screenshots (approximate hex values)
-- Return 3–7 userFlowSteps describing what is visible across both screenshots
+- Return 3–7 userFlowSteps describing the actual navigation journey shown across the desktop screenshots
 - Return 2–4 designDecisions explaining notable choices you observe
 - Return exactly 3–5 vibeKeywords capturing the emotional tone
-- List concrete UI components you can see (e.g. "sticky header", "card grid", "floating CTA")
-- Reference what you actually see; do not invent elements not present in the screenshots`;
+- List concrete UI components you can see (e.g. "sticky header", "card grid", "floating CTA", "auth form")
+- Reference what you actually see across all screenshots; do not invent elements not present`;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseReport(parsed: Record<string, any>, url: string): DesignReport {
@@ -157,31 +162,54 @@ function parseReport(parsed: Record<string, any>, url: string): DesignReport {
 }
 
 export async function analyzeScreenshots(
-  desktop: Buffer,
+  desktopSteps: { name: string; screenshot: Buffer }[],
   mobile: Buffer,
   url: string,
 ): Promise<DesignReport> {
   const ai = getClient();
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: PROMPT },
-          { text: "Desktop screenshot (1280×800):" },
-          { inlineData: { mimeType: "image/png", data: desktop.toString("base64") } },
-          { text: "Mobile screenshot (390×844):" },
-          { inlineData: { mimeType: "image/png", data: mobile.toString("base64") } },
-        ],
+  // Build parts: include each desktop step screenshot with its label
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stepParts: any[] = desktopSteps.flatMap((step, i) => [
+    { text: `Desktop step ${i + 1} — "${step.name}":` },
+    { inlineData: { mimeType: "image/png", data: step.screenshot.toString("base64") } },
+  ]);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  let response: GenerateContentResponse;
+  try {
+    response = await ai.models.generateContent({
+      model: MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: PROMPT },
+            ...stepParts,
+            { text: "Mobile screenshot (390×844) — landing page:" },
+            { inlineData: { mimeType: "image/png", data: mobile.toString("base64") } },
+          ],
+        },
+      ],
+      config: {
+        responseMimeType: "application/json",
+        responseJsonSchema: RESPONSE_SCHEMA,
+        abortSignal: controller.signal,
+        httpOptions: { timeout: MODEL_TIMEOUT_MS },
       },
-    ],
-    config: {
-      responseMimeType: "application/json",
-      responseJsonSchema: RESPONSE_SCHEMA,
-    },
-  });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isTimeout = /timeout|abort/i.test(message);
+    throw new Error(
+      isTimeout
+        ? `Gemini request timed out after ${Math.round(MODEL_TIMEOUT_MS / 1000)}s`
+        : `Gemini error: ${message}`,
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const raw = (response.text ?? "").trim();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

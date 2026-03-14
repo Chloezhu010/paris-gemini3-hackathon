@@ -1,16 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { DesignResponse, OnboardingStep } from "@/types/audit";
-import { captureOnboardingFlow } from "@/server/captureScreenshot";
+import type { AgentEvent, FlowStepCapture } from "@/types/audit";
+import { captureWithAgent } from "@/server/auditAgent";
 import { analyzeScreenshots } from "@/server/geminiClient";
-
-// Verdicts/notes are mock until per-step Gemini analysis is wired
-const STEP_VERDICTS: OnboardingStep["verdict"][] = ["needs-work", "issue", "needs-work"];
-const STEP_NOTES = [
-  "First impression — assess hero clarity, CTA visibility, and trust signals above the fold.",
-  "Post-CTA destination — check whether users land on a value page or are immediately asked to commit.",
-  "Sign-up form — evaluate field count, friction, and available auth options.",
-];
 
 export const runtime = "nodejs";
 
@@ -23,44 +14,64 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: "Invalid request: `url` is required and must be a valid URL.", details: parsed.error.issues },
       { status: 400 },
     );
   }
 
   const { url } = parsed.data;
+  const encoder = new TextEncoder();
 
-  try {
-    const { flowSteps, mobile } = await captureOnboardingFlow(url);
+  const stream = new ReadableStream({
+    async start(controller) {
+      function emit(event: AgentEvent) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      }
 
-    // Use landing page screenshot (step 0) + mobile for Gemini analysis
-    const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile, url);
+      try {
+        const { flowSteps, mobile } = await captureWithAgent(url, emit);
 
-    const onboardingSteps: OnboardingStep[] = flowSteps.map((step, i) => ({
-      name: step.name,
-      screenshotUrl: `data:image/png;base64,${step.screenshot.toString("base64")}`,
-      verdict: STEP_VERDICTS[i] ?? "needs-work",
-      notes: STEP_NOTES[i] ?? "Captured by Playwright.",
-    }));
+        emit({ type: "analysis_start" });
+        const report = await analyzeScreenshots(
+          flowSteps.map((s) => ({ name: s.name, screenshot: s.screenshot })),
+          mobile,
+          url,
+        );
 
-    const response: DesignResponse = {
-      report,
-      screenshots: {
-        desktop: `data:image/png;base64,${flowSteps[0].screenshot.toString("base64")}`,
-        mobile: `data:image/png;base64,${mobile.toString("base64")}`,
-      },
-      onboardingSteps,
-    };
+        const flowStepCaptures: FlowStepCapture[] = flowSteps.map((s) => ({
+          name: s.name,
+          dataUri: `data:image/png;base64,${s.screenshot.toString("base64")}`,
+        }));
 
-    return NextResponse.json(response);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unexpected error.";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+        emit({
+          type: "done",
+          report,
+          screenshots: {
+            desktop: `data:image/png;base64,${flowSteps[0].screenshot.toString("base64")}`,
+            mobile: `data:image/png;base64,${mobile.toString("base64")}`,
+          },
+          flowStepCaptures,
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unexpected error.";
+        emit({ type: "error", message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
