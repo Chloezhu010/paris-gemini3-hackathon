@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { AgentEvent, DesignReport, DesignScreenshots, FlowStepCapture, OnboardingStep } from "@/types/audit";
 import { Button } from "@/components/ui/Button";
-import ProgressSteps from "@/components/ProgressSteps";
 import FlowTimeline from "@/components/FlowTimeline";
 
 function formatIso(ts: string) {
@@ -193,29 +192,69 @@ export default function AuditApp() {
           {/* Loading state */}
           {status === "loading" ? (
             <section className="border-2 border-[#e5e7eb] bg-white p-8 animate-slide-in">
-              <ProgressSteps />
+              <div className="space-y-6">
+                {/* Header + progress bar */}
+                <div>
+                  <h3 className="text-lg font-bold text-[#1f2937] mb-2">Live events</h3>
+                  <div className="w-full bg-[#e5e7eb] h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-[#6d28d9] to-[#ec4899] h-full transition-all duration-500 ease-out"
+                      style={{
+                        width: agentLog.length === 0
+                          ? "5%"
+                          : `${Math.min(agentLog.filter(e => eventLabel(e) !== null).length * 14, 90)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
 
-              {/* Live agent log */}
-              {agentLog.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-[#e5e7eb]">
-                  <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold mb-3">Live events</p>
-                  <ul className="space-y-2">
-                    {agentLog.map((e, i) => {
-                      const label = eventLabel(e);
-                      if (!label) return null;
-                      const isLast = i === agentLog.length - 1;
+                {/* Step list */}
+                <ol className="space-y-3 font-mono">
+                  {agentLog.length === 0 ? (
+                    <li className="flex items-center gap-4">
+                      <div
+                        className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-semibold"
+                        style={{ backgroundColor: "#6d28d9", color: "#ffffff" }}
+                      >
+                        <span className="animate-pulse">●</span>
+                      </div>
+                      <span className="text-sm font-semibold text-[#6d28d9]">Starting agent…</span>
+                    </li>
+                  ) : (() => {
+                    const visible = agentLog
+                      .map((e, i) => ({ label: eventLabel(e), i }))
+                      .filter(({ label }) => label !== null);
+                    return visible.map(({ label, i }, vi) => {
+                      const isDone = vi < visible.length - 1;
+                      const isActive = vi === visible.length - 1;
                       return (
-                        <li key={i} className="flex items-center gap-2.5 text-xs font-mono">
+                        <li key={i} className="flex items-center gap-4">
+                          <div
+                            className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-xs font-semibold transition-all duration-300"
+                            style={{
+                              backgroundColor: isDone ? "#d1d5db" : isActive ? "#6d28d9" : "#e5e7eb",
+                              color: isDone ? "#6b7280" : isActive ? "#ffffff" : "#1f2937",
+                            }}
+                          >
+                            {isDone && "✓"}
+                            {isActive && <span className="animate-pulse">●</span>}
+                          </div>
                           <span
-                            className={`h-1.5 w-1.5 flex-shrink-0 ${isLast ? "bg-[#6d28d9] animate-pulse" : "bg-[#d1d5db]"}`}
-                          />
-                          <span className={isLast ? "text-[#1f2937]" : "text-[#9ca3af]"}>{label}</span>
+                            className="text-sm transition-colors duration-300"
+                            style={{
+                              color: isDone ? "#d1d5db" : isActive ? "#6d28d9" : "#6b7280",
+                              textDecoration: isDone ? "line-through" : "none",
+                              fontWeight: isActive ? "600" : "400",
+                            }}
+                          >
+                            {label}
+                          </span>
                         </li>
                       );
-                    })}
-                  </ul>
-                </div>
-              )}
+                    });
+                  })()}
+                </ol>
+              </div>
             </section>
           ) : report ? (
             <section className="border-2 border-[#e5e7eb] bg-white p-8 space-y-10 animate-slide-in">
