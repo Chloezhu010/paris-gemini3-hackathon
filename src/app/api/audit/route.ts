@@ -1,37 +1,22 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import type { AuditReport, AuditResponse } from "@/types/audit";
+import { captureOnboardingScreenshots } from "@/server/captureScreenshot";
+import { analyzeScreenshots } from "@/server/geminiClient";
 
 export const runtime = "nodejs";
 
-type InputMode = "url" | "text" | "screenshot";
+const requestSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("url"), url: z.string().url() }),
+  z.object({ mode: z.literal("text"), idea: z.string().min(1).max(2000) }),
+  z.object({ mode: z.literal("screenshot") }),
+]);
 
-type AuditIssue = {
-  title: string;
-  severity: 1 | 2 | 3 | 4 | 5;
-  evidence: string;
-  recommendation: string;
-};
-
-type AuditReport = {
-  generatedAt: string;
-  productGuess: string;
-  primaryGoal: string;
-  score: number;
-  quickWins: string[];
-  issues: AuditIssue[];
-};
-
-function makeMockReport(mode: InputMode, hint?: string): AuditReport {
-  const hintLabel = hint ? ` (${hint})` : "";
-  const now = new Date().toISOString();
-
-  const base: AuditReport = {
-    generatedAt: now,
-    productGuess:
-      mode === "text"
-        ? `B2C product landing${hintLabel}`
-        : mode === "screenshot"
-          ? `UI screenshot review${hintLabel}`
-          : `Website landing page${hintLabel}`,
+// Kept for text/screenshot fallback modes
+function makeMockReport(hint?: string): AuditReport {
+  return {
+    generatedAt: new Date().toISOString(),
+    productGuess: hint ? `Product: ${hint}` : "B2C landing page",
     primaryGoal: "Increase sign-ups / conversions",
     score: 76,
     quickWins: [
@@ -43,50 +28,66 @@ function makeMockReport(mode: InputMode, hint?: string): AuditReport {
       {
         title: "Weak visual hierarchy in the hero",
         severity: 4,
-        evidence: "Headline, subcopy, and CTA have similar weight at first glance.",
+        evidence: "Headline, subcopy, and CTA have similar visual weight.",
         recommendation:
-          "Increase headline size/contrast, reduce paragraph density, and add more spacing between hero blocks.",
+          "Increase headline size/contrast, reduce paragraph density, add more spacing.",
       },
       {
         title: "Primary CTA lacks specificity",
         severity: 3,
-        evidence: "CTA label is generic and doesn’t communicate outcome.",
-        recommendation:
-          "Rewrite CTA to an outcome-based label (e.g. “Get my audit” / “Generate report”).",
+        evidence: "CTA label is generic and doesn't communicate outcome.",
+        recommendation: 'Rewrite to outcome-based label e.g. "Get my audit".',
       },
       {
         title: "Low trust on first screen",
         severity: 3,
         evidence: "No credibility markers near the conversion point.",
-        recommendation:
-          "Add a compact credibility row: customer logos, a short testimonial, or a measurable stat.",
+        recommendation: "Add logos, a short testimonial, or a measurable stat.",
       },
     ],
   };
-
-  return base;
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => null)) as
-    | { mode?: InputMode; url?: string; idea?: string; screenshot?: unknown }
-    | null;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
 
-  const mode = body?.mode;
-  if (mode !== "url" && mode !== "text" && mode !== "screenshot") {
+  const parsed = requestSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid request: missing `mode`." },
+      { error: "Invalid request.", details: parsed.error.format() },
       { status: 400 },
     );
   }
 
-  const hint =
-    mode === "url"
-      ? body?.url?.slice(0, 80)
-      : mode === "text"
-        ? body?.idea?.slice(0, 80)
-        : undefined;
+  const input = parsed.data;
 
-  return NextResponse.json({ report: makeMockReport(mode, hint) });
+  // — URL mode: real Playwright + Gemini pipeline —
+  if (input.mode === "url") {
+    try {
+      const screenshots = await captureOnboardingScreenshots(input.url);
+      const report = await analyzeScreenshots(screenshots.desktop, screenshots.mobile);
+
+      const response: AuditResponse = {
+        report,
+        screenshots: {
+          desktop: `data:image/png;base64,${screenshots.desktop.toString("base64")}`,
+          mobile: `data:image/png;base64,${screenshots.mobile.toString("base64")}`,
+        },
+      };
+
+      return NextResponse.json(response);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unexpected error.";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
+  // — Fallback: mock for text/screenshot modes —
+  const hint = input.mode === "text" ? input.idea.slice(0, 80) : undefined;
+  return NextResponse.json({ report: makeMockReport(hint) } satisfies AuditResponse);
 }
-

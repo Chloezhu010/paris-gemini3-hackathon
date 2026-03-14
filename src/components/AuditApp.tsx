@@ -1,24 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { AuditIssue, AuditReport, AuditScreenshots } from "@/types/audit";
 
 type InputMode = "url" | "text" | "screenshot";
-
-type AuditIssue = {
-  title: string;
-  severity: 1 | 2 | 3 | 4 | 5;
-  evidence: string;
-  recommendation: string;
-};
-
-type AuditReport = {
-  generatedAt: string;
-  productGuess: string;
-  primaryGoal: string;
-  score: number;
-  quickWins: string[];
-  issues: AuditIssue[];
-};
 
 function severityLabel(severity: AuditIssue["severity"]) {
   switch (severity) {
@@ -97,6 +82,7 @@ export default function AuditApp() {
   );
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<AuditReport | null>(null);
+  const [screenshots, setScreenshots] = useState<AuditScreenshots | null>(null);
 
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
@@ -119,6 +105,8 @@ export default function AuditApp() {
   async function submit() {
     setStatus("loading");
     setError(null);
+    setReport(null);
+    setScreenshots(null);
 
     try {
       const payload =
@@ -126,7 +114,7 @@ export default function AuditApp() {
           ? { mode, url: url.trim() }
           : mode === "text"
             ? { mode, idea: idea.trim() }
-            : { mode, screenshot: file ? { name: file.name, size: file.size } : null };
+            : { mode };
 
       const response = await fetch("/api/audit", {
         method: "POST",
@@ -135,16 +123,22 @@ export default function AuditApp() {
       });
 
       if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || `Request failed: ${response.status}`);
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          (data as { error?: string } | null)?.error ||
+            `Request failed: ${response.status}`,
+        );
       }
 
-      const data = (await response.json()) as { report: AuditReport };
+      const data = (await response.json()) as {
+        report: AuditReport;
+        screenshots?: AuditScreenshots;
+      };
       setReport(data.report);
+      setScreenshots(data.screenshots ?? null);
       setStatus("success");
     } catch (e) {
       setStatus("error");
-      setReport(null);
       setError(e instanceof Error ? e.message : "Unknown error");
     }
   }
@@ -304,7 +298,14 @@ export default function AuditApp() {
               ) : null}
             </div>
 
-            {!report ? (
+            {status === "loading" ? (
+              <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-zinc-200 bg-white p-10">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-900" />
+                <p className="text-sm text-zinc-500">
+                  Capturing screenshots and analysing with Gemini…
+                </p>
+              </div>
+            ) : !report ? (
               <div className="mt-6 rounded-2xl border border-dashed border-zinc-200 bg-white p-6">
                 <p className="text-sm font-medium text-zinc-900">
                   Run an audit to see results here.
@@ -339,6 +340,34 @@ export default function AuditApp() {
               </div>
             ) : (
               <div className="mt-6 space-y-6">
+                {screenshots ? (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-zinc-950">
+                      Captured screenshots
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <p className="text-xs text-zinc-500">Desktop</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={screenshots.desktop}
+                          alt="Desktop screenshot"
+                          className="w-full rounded-xl ring-1 ring-inset ring-zinc-200"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-zinc-500">Mobile</p>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={screenshots.mobile}
+                          alt="Mobile screenshot"
+                          className="w-full rounded-xl ring-1 ring-inset ring-zinc-200"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-3 sm:grid-cols-3">
                   <div className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-inset ring-zinc-200">
                     <p className="text-xs font-medium text-zinc-700">Score</p>
@@ -423,8 +452,8 @@ export default function AuditApp() {
         </main>
 
         <footer className="mt-10 text-xs text-zinc-500">
-          Next step: wire `POST /api/audit` to Gemini + tools (Playwright,
-          search) and replace mock data with real audits.
+          URL mode: Playwright captures screenshots → Gemini analyzes → real
+          audit. Text/screenshot modes use mock data.
         </footer>
       </div>
     </div>
