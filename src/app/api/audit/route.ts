@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { DesignResponse } from "@/types/audit";
+import type { AgentEvent } from "@/types/audit";
 import { captureWithAgent } from "@/server/auditAgent";
 import { analyzeScreenshots } from "@/server/geminiClient";
 
@@ -15,36 +14,54 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
+    return Response.json(
       { error: "Invalid request: `url` is required and must be a valid URL.", details: parsed.error.issues },
       { status: 400 },
     );
   }
 
   const { url } = parsed.data;
+  const encoder = new TextEncoder();
 
-  try {
-    const { flowSteps, mobile } = await captureWithAgent(url);
+  const stream = new ReadableStream({
+    async start(controller) {
+      function emit(event: AgentEvent) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      }
 
-    // Use landing page screenshot (step 0) + mobile for Gemini analysis
-    const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile, url);
+      try {
+        const { flowSteps, mobile } = await captureWithAgent(url, emit);
 
-    const response: DesignResponse = {
-      report,
-      screenshots: {
-        desktop: `data:image/png;base64,${flowSteps[0].screenshot.toString("base64")}`,
-        mobile: `data:image/png;base64,${mobile.toString("base64")}`,
-      },
-    };
+        emit({ type: "analysis_start" });
+        const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile, url);
 
-    return NextResponse.json(response);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Unexpected error.";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+        emit({
+          type: "done",
+          report,
+          screenshots: {
+            desktop: `data:image/png;base64,${flowSteps[0].screenshot.toString("base64")}`,
+            mobile: `data:image/png;base64,${mobile.toString("base64")}`,
+          },
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Unexpected error.";
+        emit({ type: "error", message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }

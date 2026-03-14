@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { DesignReport, DesignScreenshots } from "@/types/audit";
-import ProgressSteps from "@/components/ProgressSteps";
+import type { AgentEvent, DesignReport, DesignScreenshots } from "@/types/audit";
 
 function formatIso(ts: string) {
   const date = new Date(ts);
@@ -13,12 +12,34 @@ function formatIso(ts: string) {
   }).format(date);
 }
 
+function eventLabel(e: AgentEvent): string | null {
+  switch (e.type) {
+    case "navigating":
+      try { return `Navigating to ${new URL(e.url).hostname}…`; } catch { return `Navigating…`; }
+    case "screenshot_taken":
+      return `Captured: ${e.name}`;
+    case "agent_thinking":
+      return "Gemini deciding next action…";
+    case "agent_action":
+      if (e.tool === "click_text") return `Clicking "${e.args.text as string}"`;
+      if (e.tool === "scroll_page") return "Scrolling page";
+      return e.tool;
+    case "agent_done":
+      return e.reason ? `Done — ${e.reason}` : "Flow captured";
+    case "analysis_start":
+      return "Analyzing design with Gemini…";
+    default:
+      return null;
+  }
+}
+
 export default function AuditApp() {
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<DesignReport | null>(null);
   const [screenshots, setScreenshots] = useState<DesignScreenshots | null>(null);
+  const [agentLog, setAgentLog] = useState<AgentEvent[]>([]);
 
   const canSubmit = url.trim().length > 0;
 
@@ -27,32 +48,66 @@ export default function AuditApp() {
     setError(null);
     setReport(null);
     setScreenshots(null);
+    setAgentLog([]);
 
+    let response: Response;
     try {
-      const response = await fetch("/api/audit", {
+      response = await fetch("/api/audit", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
       });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(
-          (data as { error?: string } | null)?.error ??
-            `Request failed: ${response.status}`,
-        );
-      }
-
-      const data = await response.json() as {
-        report: DesignReport;
-        screenshots?: DesignScreenshots;
-      };
-      setReport(data.report);
-      setScreenshots(data.screenshots ?? null);
-      setStatus("success");
     } catch (e) {
       setStatus("error");
-      setError(e instanceof Error ? e.message : "Unknown error");
+      setError(e instanceof Error ? e.message : "Network error");
+      return;
+    }
+
+    if (!response.ok || !response.body) {
+      const data = await response.json().catch(() => null);
+      setStatus("error");
+      setError((data as { error?: string } | null)?.error ?? `Request failed: ${response.status}`);
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let completed = false;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+          const event = JSON.parse(line.slice(6)) as AgentEvent;
+
+          if (event.type === "done") {
+            completed = true;
+            setReport(event.report);
+            setScreenshots(event.screenshots);
+            setStatus("success");
+          } else if (event.type === "error") {
+            completed = true;
+            setError(event.message);
+            setStatus("error");
+          } else {
+            setAgentLog((prev) => [...prev, event]);
+          }
+        }
+      }
+    } catch (e) {
+      if (!completed) {
+        setStatus("error");
+        setError(e instanceof Error ? e.message : "Stream error");
+      }
     }
   }
 
@@ -122,10 +177,33 @@ export default function AuditApp() {
             ) : null}
           </section>
 
-          {/* Report panel */}
+          {/* Agent activity log (shown while loading) */}
           {status === "loading" ? (
             <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-inset ring-zinc-200 backdrop-blur">
-              <ProgressSteps />
+              <p className="mb-3 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                Agent activity
+              </p>
+              <ul className="space-y-2">
+                {agentLog.map((e, i) => {
+                  const label = eventLabel(e);
+                  if (!label) return null;
+                  const isLast = i === agentLog.length - 1;
+                  return (
+                    <li key={i} className="flex items-center gap-2.5 text-sm">
+                      {isLast ? (
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-500 animate-pulse" />
+                      ) : (
+                        <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-zinc-300" />
+                      )}
+                      <span className={isLast ? "text-zinc-800" : "text-zinc-500"}>{label}</span>
+                    </li>
+                  );
+                })}
+                <li className="flex items-center gap-2.5 text-sm text-zinc-400">
+                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-zinc-200 animate-pulse" />
+                  <span>Waiting…</span>
+                </li>
+              </ul>
             </section>
           ) : report ? (
             <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-inset ring-zinc-200 backdrop-blur space-y-8">

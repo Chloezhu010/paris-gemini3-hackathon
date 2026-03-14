@@ -1,5 +1,6 @@
 import { chromium, type Page } from "playwright";
 import { GoogleGenAI } from "@google/genai";
+import type { AgentEvent } from "@/types/audit";
 import type { CapturedFlowStep } from "./captureScreenshot";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
@@ -93,7 +94,6 @@ async function executeToolCall(
   if (name === "click_text") {
     const text = String(args.text ?? "");
     try {
-      // Try role-based locator first (most reliable for CTAs)
       const byRole = page
         .getByRole("button", { name: text, exact: false })
         .or(page.getByRole("link", { name: text, exact: false }))
@@ -107,7 +107,6 @@ async function executeToolCall(
         return `Clicked "${text}"`;
       }
 
-      // Fallback: match any element containing the text
       const byText = page.getByText(text, { exact: false }).first();
       if ((await byText.count()) > 0) {
         await Promise.all([
@@ -137,14 +136,17 @@ async function runDesktopAgent(
   page: Page,
   url: string,
   ai: GoogleGenAI,
+  onEvent: (e: AgentEvent) => void,
 ): Promise<CapturedFlowStep[]> {
   const steps: CapturedFlowStep[] = [];
 
+  onEvent({ type: "navigating", url });
   await page.goto(url, { waitUntil: "load", timeout: GOTO_TIMEOUT });
+
   let screenshot = await page.screenshot({ type: "png", fullPage: false });
   steps.push({ name: "Landing page", screenshot });
+  onEvent({ type: "screenshot_taken", name: "Landing page", index: 0 });
 
-  // Seed the conversation with the landing page screenshot
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const messages: any[] = [
     {
@@ -161,6 +163,8 @@ async function runDesktopAgent(
   let agentSteps = 0;
 
   while (agentSteps < MAX_AGENT_STEPS) {
+    onEvent({ type: "agent_thinking" });
+
     const response = await ai.models.generateContent({
       model: MODEL,
       contents: messages,
@@ -170,7 +174,6 @@ async function runDesktopAgent(
     const candidate = response.candidates?.[0];
     if (!candidate?.content) break;
 
-    // Append model turn to keep conversation history intact
     messages.push({ role: "model", parts: candidate.content.parts });
 
     const calls = response.functionCalls;
@@ -181,6 +184,7 @@ async function runDesktopAgent(
     const callArgs = (call.args ?? {}) as Record<string, unknown>;
 
     if (callName === "done") {
+      onEvent({ type: "agent_done", reason: String(callArgs.reason ?? "") });
       messages.push({
         role: "user",
         parts: [
@@ -189,6 +193,8 @@ async function runDesktopAgent(
       });
       break;
     }
+
+    onEvent({ type: "agent_action", tool: callName, args: callArgs });
 
     const result = await executeToolCall(page, callName, callArgs);
     agentSteps++;
@@ -201,8 +207,8 @@ async function runDesktopAgent(
           ? "Scrolled page"
           : callName;
     steps.push({ name: stepName, screenshot });
+    onEvent({ type: "screenshot_taken", name: stepName, index: steps.length - 1 });
 
-    // Return tool result + updated screenshot so Gemini can decide next action
     messages.push({
       role: "user",
       parts: [
@@ -220,9 +226,13 @@ async function runDesktopAgent(
  * Captures the onboarding flow using a Gemini function-calling agent to drive
  * the browser, eliminating hardcoded CTA selectors.
  *
- * Runs desktop (agent-driven) and mobile (static landing capture) in parallel.
+ * Emits AgentEvent callbacks as each step completes so callers can stream
+ * real-time progress to clients.
  */
-export async function captureWithAgent(url: string): Promise<{
+export async function captureWithAgent(
+  url: string,
+  onEvent: (e: AgentEvent) => void = () => {},
+): Promise<{
   flowSteps: CapturedFlowStep[];
   mobile: Buffer;
 }> {
@@ -237,7 +247,7 @@ export async function captureWithAgent(url: string): Promise<{
         const ctx = await browser.newContext({ viewport: DESKTOP });
         const page = await ctx.newPage();
         try {
-          return await runDesktopAgent(page, url, ai);
+          return await runDesktopAgent(page, url, ai, onEvent);
         } finally {
           await ctx.close();
         }
@@ -252,7 +262,9 @@ export async function captureWithAgent(url: string): Promise<{
         const page = await ctx.newPage();
         try {
           await page.goto(url, { waitUntil: "load", timeout: GOTO_TIMEOUT });
-          return await page.screenshot({ type: "png", fullPage: false });
+          const buf = await page.screenshot({ type: "png", fullPage: false });
+          onEvent({ type: "screenshot_taken", name: "Mobile landing", index: -1 });
+          return buf;
         } finally {
           await ctx.close();
         }

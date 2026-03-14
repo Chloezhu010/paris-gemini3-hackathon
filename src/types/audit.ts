@@ -87,6 +87,18 @@ export type DesignReport = {
   vibeKeywords: string[]; // 3–5 adjectives, e.g. ["vibrant", "youthful", "instant"]
 };
 
+// ── Agent SSE Events ──────────────────────────────────────────────────────────
+
+export type AgentEvent =
+  | { type: "navigating"; url: string }
+  | { type: "screenshot_taken"; name: string; index: number }
+  | { type: "agent_thinking" }
+  | { type: "agent_action"; tool: string; args: Record<string, unknown> }
+  | { type: "agent_done"; reason: string }
+  | { type: "analysis_start" }
+  | { type: "done"; report: DesignReport; screenshots: DesignScreenshots }
+  | { type: "error"; message: string };
+
 // ── API Responses ─────────────────────────────────────────────────────────────
 
 export type AuditResponse = {
