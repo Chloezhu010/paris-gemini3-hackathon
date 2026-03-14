@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { DesignResponse } from "@/types/audit";
-import { captureOnboardingScreenshots } from "@/server/captureScreenshot";
+import { captureOnboardingFlow } from "@/server/captureScreenshot";
 import { analyzeScreenshots } from "@/server/geminiClient";
 
 export const runtime = "nodejs";
 
-const requestSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("url"), url: z.string().url() }),
-  z.object({ mode: z.literal("text"), idea: z.string().min(1).max(2000) }),
-  z.object({ mode: z.literal("screenshot") }),
-]);
-
+const requestSchema = z.object({
+  url: z.url(),
+});
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -24,26 +21,24 @@ export async function POST(req: Request) {
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid request.", details: parsed.error.format() },
+      { error: "Invalid request: `url` is required and must be a valid URL.", details: parsed.error.issues },
       { status: 400 },
     );
   }
 
-  const input = parsed.data;
-
-  if (input.mode !== "url") {
-    return NextResponse.json({ error: "Only URL mode is supported." }, { status: 400 });
-  }
+  const { url } = parsed.data;
 
   try {
-    const screenshots = await captureOnboardingScreenshots(input.url);
-    const report = await analyzeScreenshots(screenshots.desktop, screenshots.mobile, input.url);
+    const { flowSteps, mobile } = await captureOnboardingFlow(url);
+
+    // Use landing page screenshot (step 0) + mobile for Gemini analysis
+    const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile, url);
 
     const response: DesignResponse = {
       report,
       screenshots: {
-        desktop: `data:image/png;base64,${screenshots.desktop.toString("base64")}`,
-        mobile: `data:image/png;base64,${screenshots.mobile.toString("base64")}`,
+        desktop: `data:image/png;base64,${flowSteps[0].screenshot.toString("base64")}`,
+        mobile: `data:image/png;base64,${mobile.toString("base64")}`,
       },
     };
 
