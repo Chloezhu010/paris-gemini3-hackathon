@@ -4,15 +4,15 @@ import type { AgentEvent } from "@/types/audit";
 import type { CapturedFlowStep } from "./captureScreenshot";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 35_000;
 const MODEL_TIMEOUT_MS = (() => {
   const value = Number(process.env.GEMINI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
 })();
 const DESKTOP = { width: 1280, height: 800 };
 const MOBILE = { width: 390, height: 844 };
-const GOTO_TIMEOUT = 25_000;
-const NAV_TIMEOUT = 8_000;
+const GOTO_TIMEOUT = 30_000;
+const NAV_TIMEOUT = 13_000;
 const MAX_AGENT_STEPS = 5;
 
 function getClient(): GoogleGenAI {

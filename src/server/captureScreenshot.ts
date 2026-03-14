@@ -2,8 +2,8 @@ import { chromium } from "playwright";
 
 const DESKTOP = { width: 1280, height: 800 };
 const MOBILE = { width: 390, height: 844 };
-const GOTO_TIMEOUT = 25_000;
-const NAV_TIMEOUT = 10_000;
+const GOTO_TIMEOUT = 30_000;
+const NAV_TIMEOUT = 15_000;
 
 // Ordered by priority — first match wins
 const CTA_PATTERNS = [

@@ -7,7 +7,7 @@ import type {
 } from "@/types/audit";
 
 const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-pro";
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 35_000;
 const MODEL_TIMEOUT_MS = (() => {
   const value = Number(process.env.GEMINI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;

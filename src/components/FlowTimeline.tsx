@@ -3,21 +3,21 @@ import type { OnboardingStep } from "@/types/audit";
 const verdictConfig = {
   good: {
     label: "Good",
-    chip: "bg-[#d1fae5] text-[#065f46] border border-[#10b981]",
-    dot: "bg-[#10b981]",
-    line: "border-[#10b981]",
+    chip: "bg-[#ede9fe] text-[#6d28d9] border border-[#6d28d9]",
+    dot: "bg-[#6d28d9]",
+    line: "border-[#6d28d9]",
   },
   "needs-work": {
     label: "Needs work",
-    chip: "bg-[#fef3c7] text-[#92400e] border border-[#f59e0b]",
-    dot: "bg-[#f59e0b]",
-    line: "border-[#f59e0b]",
+    chip: "bg-[#fce7f3] text-[#ec4899] border border-[#ec4899]",
+    dot: "bg-[#ec4899]",
+    line: "border-[#ec4899]",
   },
   issue: {
     label: "Issue",
-    chip: "bg-[#fee2e2] text-[#991b1b] border border-[#dc2626]",
-    dot: "bg-[#dc2626]",
-    line: "border-[#dc2626]",
+    chip: "bg-[#ede9fe] text-[#5b21b6] border border-[#5b21b6]",
+    dot: "bg-[#5b21b6]",
+    line: "border-[#5b21b6]",
   },
 };
 
