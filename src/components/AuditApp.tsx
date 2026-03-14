@@ -100,7 +100,7 @@ export default function AuditApp() {
           </div>
         </header>
 
-        <main className="mt-10 grid gap-6 lg:grid-cols-2">
+        <main className="mt-10 flex flex-col gap-6">
           {/* Input panel */}
           <section className="rounded-3xl bg-white/80 p-6 ring-1 ring-inset ring-zinc-200 backdrop-blur">
             <div className="space-y-4">
