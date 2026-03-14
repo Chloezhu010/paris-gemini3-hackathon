@@ -1,211 +1,130 @@
-# Competitor Research Agent for Designers (Gemini3) — Hackathon Plan (3 Hours MVP)
+# URL UI/UX Audit Agent (Designer‑Focused, Gemini3) — Hackathon Plan (3 Hours MVP)
 
 ## Goal
 
-Build a **multimodal competitor research tool** that helps designers gather design inspiration by analyzing competitors. Users can input either:
+Build a **URL‑only UI/UX audit tool** that helps designers quickly understand what’s working, what’s broken, and what to ship next on a landing/onboarding page.
 
-- a **feature/idea description** (e.g., "email subscription popup")
-- a **website URL** (to analyze a specific product)
+Users paste a **website URL**. The system captures **desktop + mobile screenshots** and returns a **structured, renderable report** that directly informs iteration and “vibe coding”:
 
-The system automatically finds relevant competitors and extracts **design reference cards** that directly inform **vibe coding**:
+- **Top issues** (severity + evidence + concrete fix)
+- **Quick wins** (exactly 3)
+- **Design language cues** (colors/typography/components/vibe keywords — optional stretch)
 
-- **User Flow diagrams** (key steps extracted from screenshots)
-- **Design Language** (colors, typography, components, animation vibe)
-- **Design Decisions** (why competitors made certain choices)
-- **Vibe Keywords** (emotional tone to guide implementation)
+The core value is: **2 minutes from URL → actionable design fixes**, no manual screenshots or note‑taking.
 
-The core value is: **designers get all competitor research in 2 minutes**, ready to inform their own design without manual screenshots and Figma organization.
+## MVP Scope (URL‑Only Workflow)
 
-## MVP Scope (Designer-Centric Workflow)
+MVP focuses on a single happy path:
 
-MVP focuses on two input modes with identical output quality:
-
-### Mode 1: Feature Idea → Competitor Discovery
-1. User describes a feature idea (text input)
-2. Gemini recommends 3 competitor URLs
-3. System captures desktop + mobile screenshots (key flow stages)
-4. Gemini extracts user flows + design language
-5. UI renders 3 competitor reference cards + common patterns
-
-### Mode 2: URL → Direct Analysis
 1. User provides a URL to a specific product
 2. System captures desktop + mobile screenshots (full flow)
-3. Gemini extracts design structure + patterns
-4. UI renders design reference card + design decisions
+3. Gemini produces a strict JSON audit report
+4. UI renders screenshots + score + issues + quick wins
 
 Fallbacks:
 
-- If Playwright screenshot fails (login wall, timeout), allow user to upload 3 screenshots manually
-- If competitor search fails, allow user to paste 3 competitor URLs directly
+- If Playwright screenshot fails (login wall, timeout), show a clear error and allow retry with a different URL (screenshot upload is post‑MVP).
+- If Gemini JSON parsing fails, show a recoverable error state and allow “Regenerate”.
 
 ## Product Output (What the Designer Sees)
 
-One clean reference dashboard with **3 competitor cards** + synthesis:
+One clean report dashboard:
 
-**Each Competitor Card:**
-- **Screenshots**: curated flow stages (3-4 key steps in mobile + desktop side-by-side)
-- **User Flow Diagram**: visual flow showing key steps and decision points
-  ```
-  Entry Point → Step 1 → Decision A → Step 2 → Step 3 → Completion
-  ```
-- **Design Language**:
-  - Primary colors (with hex codes if possible)
-  - Typography (font family, size, weight)
-  - Component patterns ("floating action button", "bottom sheet modal", etc.)
-  - Animation vibe (descriptive: "snappy transitions", "immersive fullscreen", etc.)
-- **Design Decisions** (Q&A format):
-  - Why full-screen editing? → Increases creative freedom, reduces constraint feeling
-  - Why hide advanced settings? → Lower barrier to entry, encourage daily usage
-- **Vibe Keywords**: 3-5 adjectives capturing emotional tone (e.g., "vibrant, youthful, social, instant")
+- **Screenshots**: desktop + mobile side‑by‑side
+- **Score + Context**: product guess + primary goal + overall score (0–100)
+- **Top Issues (3–6)**: ordered by severity
+  - severity (1–5), evidence (what we see), recommendation (what to change)
+- **Quick Wins (exactly 3)**: immediate edits the team can ship today
+- **Optional (stretch)**: Design language card for “vibe coding”
+  - colors (hex + usage), typography (headline/body), component patterns, vibe keywords
 
-**Synthesis Section:**
-- **Common Patterns**: What all 3 competitors share (e.g., "floating action button for entry", "minimal text")
-- **Design Direction**: Recommended approach based on patterns
-  - Emotional tone to adopt
-  - What to copy (specific patterns)
-  - What to avoid (anti-patterns)
+## Architecture (Fast + URL‑Only)
 
-## Architecture (Fast + Designer-Focused)
-
-Principle: keep orchestration deterministic; use Gemini for **visual analysis + synthesis**, not tool planning. Every output must be immediately useful for design decisions.
+Principle: keep orchestration deterministic; use Gemini for **visual analysis + synthesis**, not tool planning. Every output must be renderable and stable.
 
 - Frontend: Next.js (App Router) + React + TypeScript + Tailwind
 - Backend: Next.js route handlers (Node runtime) as the orchestrator
 - Tools (server-side):
   - `captureScreenshot(url, viewport)` using Playwright (desktop + mobile)
-  - `extractKeySteps(screenshots, context)` - client-side UI hint for which screenshots matter most
-  - `searchCompetitors(query)` via Gemini or web search to get 3 relevant competitor URLs
-  - `captureCompetitorScreenshots(urls)` for full flow documentation
+  - `analyzeScreenshots(desktop, mobile)` via Gemini with strict JSON schema
 
 Data flow:
 
-1. Frontend submits either:
-   - `idea` (text): "email subscription popup"
-   - `url` (direct analysis): "https://example.com"
-2. Backend executes based on input mode:
-   - **Idea mode**: Gemini suggests 3 competitors → capture screenshots for each
-   - **URL mode**: Capture screenshots of provided URL → extract design analysis
-3. Backend calls Gemini with:
-   - user input (idea or URL context)
-   - all competitor screenshots (desktop + mobile, key flow stages)
-   - strict JSON schema (user flow + design language + decisions)
-4. Backend returns structured JSON report
-5. Frontend renders competitor reference cards + vibe synthesis
+1. Frontend submits `url`
+2. Backend captures desktop + mobile screenshots
+3. Backend calls Gemini with both screenshots + strict JSON schema
+4. Backend returns structured JSON
+5. Frontend renders the audit report + screenshots
 
-## Prompt + Output Contract (Design Reference Format)
+## Prompt + Output Contract (Renderable Audit JSON)
 
 Require Gemini to output strict JSON (no freeform markdown):
 
-For each competitor, extract:
-
 ```json
 {
-  "competitors": [
+  "productGuess": "string",
+  "primaryGoal": "string",
+  "score": 74,
+  "quickWins": ["string", "string", "string"],
+  "issues": [
     {
-      "name": "string",
-      "url": "string",
-      "user_flow": "flowchart description",
-      "user_flow_steps": [
-        {
-          "step": 1,
-          "action": "User taps + button",
-          "decision_point": false,
-          "screenshot_reference": "image_index"
-        }
-      ],
-      "design_language": {
-        "colors": [
-          {"hex": "#FFFFFF", "usage": "background"},
-          {"hex": "#E1306C", "usage": "primary CTA"}
-        ],
-        "typography": {
-          "headline_font": "SF Pro",
-          "headline_size": 18,
-          "body_font": "SF Pro",
-          "body_size": 14
-        },
-        "components": ["circular avatar", "floating action button", "bottom sheet modal"],
-        "animation_vibe": "snappy transitions, immersive fullscreen, energetic"
-      },
-      "design_decisions": [
-        {
-          "question": "Why full-screen editing?",
-          "answer": "Increases creative freedom, reduces constraint feeling"
-        }
-      ],
-      "vibe_keywords": ["vibrant", "youthful", "social", "instant"]
+      "title": "string",
+      "severity": 3,
+      "evidence": "string",
+      "recommendation": "string"
     }
-  ],
-  "common_patterns": ["all use floating action button", "all minimize text"],
-  "design_direction": {
-    "recommended_tone": "friendly, encouraging creativity, instant feedback",
-    "what_to_copy": ["FAB entry pattern", "fullscreen edit experience"],
-    "what_to_avoid": ["complex forms", "multiple confirmation steps"]
-  }
+  ]
 }
 ```
 
-Rule: every design element must include:
+Rules:
 
-- **What** (the actual design choice)
-- **Why** (the underlying intent)
-- **How** (visual examples via screenshots)
+- Return 3–6 issues ordered by severity descending
+- Return exactly 3 quick wins
+- Evidence must reference specific visual details from the screenshots
+- Keep recommendations concrete (copy changes, layout adjustments, hierarchy, trust signals, accessibility basics)
 
 ## 3-Hour Timebox (Execution Plan)
 
-**Phase 1: Core Infrastructure (0:00-0:45)**
-- 0:00-0:15: Scaffold Next.js UI shell + input form (idea + URL toggle)
-- 0:15-0:45: Implement Playwright screenshot capture (desktop + mobile, key stages only)
+**Phase 1: UI Shell (0:00-0:30)**
+- URL input + submit
+- Loading / error / success states
+- Report renderer skeleton
 
-**Phase 2: Pipeline (0:45-1:45)**
-- 0:45-1:00: Implement competitor discovery (Gemini suggests 3 URLs)
-- 1:00-1:30: Capture all competitor screenshots (parallel batch)
-- 1:30-1:45: First Gemini call: extract user flows + design language from all screenshots → JSON
+**Phase 2: Screenshot Capture (0:30-1:30)**
+- Playwright capture: desktop + mobile
+- Timeouts + basic retry + deterministic error handling
 
-**Phase 3: Rendering + Polish (1:45-3:00)**
-- 1:45-2:15: Frontend rendering of 3 competitor reference cards
-  - Competitor name + screenshots grid
-  - User flow diagram (simple visual)
-  - Design language card (colors + typography + components)
-  - Design decisions Q&A
-  - Vibe keywords
-- 2:15-2:45: Render synthesis section (common patterns + design direction)
-- 2:45-3:00: Demo polish + fallback UX (manual URL input, example case pre-loaded)
+**Phase 3: Gemini + Rendering (1:30-2:30)**
+- Gemini call with strict JSON schema
+- Server-side validation and safe parsing
+- Render score + issues + quick wins + screenshots
+
+**Phase 4: Demo Polish (2:30-3:00)**
+- Caching (optional)
+- Example URL prefill
+- “Regenerate” button + better error copy
 
 ## Risks + De-risking (Hard Fallbacks)
 
-- Competitor search fails:
-  - fallback: show UI "suggest 3 competitor URLs" with text input form
 - Screenshot capture timeout:
-  - fallback: ask user to upload 3 key screenshots manually
+  - fallback: clear error + allow retry (screenshot upload post‑MVP)
 - Gemini JSON parsing fails:
-  - show partial card (whatever parsed correctly) + error message
+  - fallback: show error + allow regenerate; keep raw text only for dev debugging (avoid logging user data)
 - URL mode on complex SPA:
-  - capture main viewport only, let Gemini work with what’s available
+  - capture main viewport only; avoid trying to click through flows in MVP
 
 ## Demo Script (2 Minutes)
 
-**Scenario 1: Idea Mode**
-1. Designer types: "Email subscription popup"
-2. System finds 3 competitors automatically (Substack, Beehiiv, Ghost)
-3. Show 3 competitor screenshots auto-captured (desktop + mobile)
-4. Show user flow diagrams extracted from screenshots
-5. Show design language cards (colors, typography, components, animation vibe)
-6. Show vibe keywords + common patterns
-7. Punchline: "2 minutes to gather competitor research. Now start vibe coding."
-
-**Scenario 2: URL Mode (Backup)**
-1. Designer pastes a URL (e.g., their own product)
-2. System captures and analyzes the design language
-3. Designer can see exactly what design decisions were made
-4. Use for: "What did we build?" self-reflection
-
-The punchline: "Competitors research → Design language extraction → Ready for vibe coding. No manual screenshot. No Figma chaos."
+1. Paste a URL → Generate
+2. Show desktop + mobile screenshots captured automatically
+3. Show score + top 3 issues (evidence + fix)
+4. Show quick wins as a checklist
+5. Punchline: “URL → screenshots → actionable fixes in 2 minutes.”
 
 ## Post-MVP (If Time Remains)
 
-- Add design language comparison (highlight differences between competitors)
-- Add interactive flow diagram (click to jump to relevant screenshot)
-- Add "export to Figma library" integration (auto-create color + component reference)
-- Add "save reference board" for team collaboration
-
+- Add screenshot upload fallback
+- Add “design language” extraction as a dedicated card (colors/typography/components/vibe keywords)
+- Add exports (Markdown / checklist)
+- Re-introduce competitor comparison (optional, after URL-only MVP is solid)
