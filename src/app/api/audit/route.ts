@@ -1,52 +1,22 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { AuditReport, AuditResponse } from "@/types/audit";
-import { captureOnboardingScreenshots } from "@/server/captureScreenshot";
+import type { AuditResponse, OnboardingStep } from "@/types/audit";
+import { captureOnboardingFlow } from "@/server/captureScreenshot";
 import { analyzeScreenshots } from "@/server/geminiClient";
 
 export const runtime = "nodejs";
 
-const requestSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("url"), url: z.string().url() }),
-  z.object({ mode: z.literal("text"), idea: z.string().min(1).max(2000) }),
-  z.object({ mode: z.literal("screenshot") }),
-]);
+const requestSchema = z.object({
+  url: z.url(),
+});
 
-// Kept for text/screenshot fallback modes
-function makeMockReport(hint?: string): AuditReport {
-  return {
-    generatedAt: new Date().toISOString(),
-    productGuess: hint ? `Product: ${hint}` : "B2C landing page",
-    primaryGoal: "Increase sign-ups / conversions",
-    score: 76,
-    quickWins: [
-      "Tighten hero headline to 1 clear promise + 1 proof line.",
-      "Make primary CTA visually dominant; demote secondary actions.",
-      "Add trust signals above the fold (logos, stats, security).",
-    ],
-    issues: [
-      {
-        title: "Weak visual hierarchy in the hero",
-        severity: 4,
-        evidence: "Headline, subcopy, and CTA have similar visual weight.",
-        recommendation:
-          "Increase headline size/contrast, reduce paragraph density, add more spacing.",
-      },
-      {
-        title: "Primary CTA lacks specificity",
-        severity: 3,
-        evidence: "CTA label is generic and doesn't communicate outcome.",
-        recommendation: 'Rewrite to outcome-based label e.g. "Get my audit".',
-      },
-      {
-        title: "Low trust on first screen",
-        severity: 3,
-        evidence: "No credibility markers near the conversion point.",
-        recommendation: "Add logos, a short testimonial, or a measurable stat.",
-      },
-    ],
-  };
-}
+// Verdict is mock until Gemini per-step analysis is wired
+const STEP_VERDICTS: OnboardingStep["verdict"][] = ["needs-work", "issue", "needs-work"];
+const STEP_NOTES = [
+  "Hero headline is vague. Primary CTA competes visually with nav links — no clear focal point above the fold.",
+  "CTA navigates to a pricing page before showing product value. Users are asked to choose a plan without understanding what they're signing up for.",
+  "Form requests 6 fields including phone number on step 1. No social login option and no progress indicator.",
+];
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -59,35 +29,36 @@ export async function POST(req: Request) {
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid request.", details: parsed.error.format() },
+      { error: "Invalid request: `url` is required and must be a valid URL.", details: parsed.error.issues },
       { status: 400 },
     );
   }
 
-  const input = parsed.data;
+  const { url } = parsed.data;
 
-  // — URL mode: real Playwright + Gemini pipeline —
-  if (input.mode === "url") {
-    try {
-      const screenshots = await captureOnboardingScreenshots(input.url);
-      const report = await analyzeScreenshots(screenshots.desktop, screenshots.mobile);
+  try {
+    const { flowSteps, mobile } = await captureOnboardingFlow(url);
 
-      const response: AuditResponse = {
-        report,
-        screenshots: {
-          desktop: `data:image/png;base64,${screenshots.desktop.toString("base64")}`,
-          mobile: `data:image/png;base64,${screenshots.mobile.toString("base64")}`,
-        },
-      };
+    // Use landing page (step 0) + mobile for Gemini analysis
+    const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile);
 
-      return NextResponse.json(response);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Unexpected error.";
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
+    // Map captured flow steps to OnboardingStep — verdicts are mock until
+    // per-step Gemini analysis is wired
+    const onboardingSteps: OnboardingStep[] = flowSteps.map((step, i) => ({
+      name: step.name,
+      screenshotUrl: `data:image/png;base64,${step.screenshot.toString("base64")}`,
+      verdict: STEP_VERDICTS[i] ?? "needs-work",
+      notes: STEP_NOTES[i] ?? "Captured by Playwright.",
+    }));
+
+    const response: AuditResponse = {
+      report,
+      onboardingSteps,
+    };
+
+    return NextResponse.json(response);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unexpected error.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  // — Fallback: mock for text/screenshot modes —
-  const hint = input.mode === "text" ? input.idea.slice(0, 80) : undefined;
-  return NextResponse.json({ report: makeMockReport(hint) } satisfies AuditResponse);
 }
