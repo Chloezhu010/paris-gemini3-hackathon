@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { DesignResponse } from "@/types/audit";
-import { captureOnboardingFlow } from "@/server/captureScreenshot";
+import { captureWithAgent } from "@/server/auditAgent";
 import { analyzeScreenshots } from "@/server/geminiClient";
 
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const { url } = parsed.data;
 
   try {
-    const { flowSteps, mobile } = await captureOnboardingFlow(url);
+    const { flowSteps, mobile } = await captureWithAgent(url);
 
     // Use landing page screenshot (step 0) + mobile for Gemini analysis
     const report = await analyzeScreenshots(flowSteps[0].screenshot, mobile, url);
