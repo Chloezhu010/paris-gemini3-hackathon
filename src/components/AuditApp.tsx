@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AgentEvent, DesignReport, DesignScreenshots, FlowStepCapture, OnboardingStep } from "@/types/audit";
 import { Button } from "@/components/ui/Button";
 import FlowTimeline from "@/components/FlowTimeline";
+import ImageLightbox from "@/components/ImageLightbox";
 
 function formatIso(ts: string) {
   const date = new Date(ts);
@@ -293,12 +294,10 @@ export default function AuditApp() {
                   {screenshots && (
                     <div className="pt-4 space-y-2">
                       <p className="text-xs uppercase tracking-widest text-[#6b7280] font-semibold">Mobile</p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                          <ImageLightbox
                         src={screenshots.mobile}
                         alt="Mobile landing"
-                        className="w-32 border-2 border-[#e5e7eb] object-cover object-top"
-                        style={{ height: 120 }}
+                        className="w-48 border-2 border-[#e5e7eb]"
                       />
                     </div>
                   )}
