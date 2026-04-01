@@ -1,4 +1,4 @@
-# AI Engineering Rules (Next.js/React) — Non‑Negotiables
+# Engineering Rules (Next.js/React) — Non‑Negotiables
 
 This repo is a multimodal UI/UX audit agent built with **Next.js (App Router) + React + TypeScript**.
 

@@ -1,4 +1,5 @@
 import type { OnboardingStep } from "@/types/audit";
+import ImageLightbox from "@/components/ImageLightbox";
 
 const verdictConfig = {
   good: {
@@ -50,12 +51,10 @@ export default function FlowTimeline({ steps }: { steps: OnboardingStep[] }) {
               </div>
 
               {step.screenshotUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <ImageLightbox
                   src={step.screenshotUrl}
                   alt={step.name}
-                  className="w-full max-w-sm border-2 border-[#e5e7eb] object-cover object-top"
-                  style={{ height: 120 }}
+                  className="w-full max-w-sm border-2 border-[#e5e7eb]"
                 />
               ) : (
                 <div className="flex aspect-video w-full max-w-sm items-center justify-center border-2 border-[#e5e7eb] bg-[#f5f5f5]">
